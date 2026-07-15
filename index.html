@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#070816" />
+    <meta
+      name="description"
+      content="30秒で遊べる1ボタンのネオン・リズムゲーム。音に合わせてSpaceキーまたは画面をタップしよう。"
+    />
+    <title>NEON BEAT — 30 Second Rhythm Challenge</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="game.js" defer></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="start-screen" class="screen start-screen" aria-labelledby="game-title">
+        <div class="brand-mark" aria-hidden="true">NB//30</div>
+        <p class="eyebrow">ONE BUTTON RHYTHM CHALLENGE</p>
+        <h1 id="game-title"><span>NEON</span> BEAT</h1>
+        <p class="intro">
+          光がラインに重なる瞬間を狙え。<br />
+          30秒、音と反射神経の勝負。
+        </p>
+
+        <div class="how-to" aria-label="操作方法">
+          <div class="control-key" aria-hidden="true">SPACE</div>
+          <span>または</span>
+          <div class="control-tap" aria-hidden="true">TAP</div>
+        </div>
+
+        <button id="start-button" class="primary-button" type="button">
+          <span>START GAME</span>
+          <span aria-hidden="true">→</span>
+        </button>
+        <p class="sound-note">音が出ます。音量を確認してからスタートしてください。</p>
+      </section>
+
+      <section id="game-screen" class="screen game-screen is-hidden" aria-label="ゲーム画面">
+        <header class="game-header">
+          <div class="hud-item">
+            <span class="hud-label">SCORE</span>
+            <strong id="score">00000</strong>
+          </div>
+          <div class="hud-center" aria-hidden="true">NEON//BEAT</div>
+          <div class="hud-item hud-item-right">
+            <span class="hud-label">TIME</span>
+            <strong><span id="time">30.0</span><small>s</small></strong>
+          </div>
+        </header>
+
+        <div class="progress-track" aria-hidden="true">
+          <div id="progress-bar" class="progress-bar"></div>
+        </div>
+
+        <div id="game-stage" class="game-stage">
+          <div class="lane-glow" aria-hidden="true"></div>
+          <div id="lane" class="lane" aria-hidden="true">
+            <div class="lane-rail lane-rail-left"></div>
+            <div class="lane-rail lane-rail-right"></div>
+            <div id="notes-layer" class="notes-layer"></div>
+            <div class="target-line">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+
+          <div id="countdown" class="countdown" role="status" aria-live="assertive"></div>
+          <div id="judgement" class="judgement" role="status" aria-live="polite"></div>
+
+          <div class="combo-wrap" aria-live="polite">
+            <strong id="combo">0</strong>
+            <span>COMBO</span>
+          </div>
+
+          <button id="hit-pad" class="hit-pad" type="button" aria-label="リズムを叩く">
+            <span class="hit-pad-label">TAP</span>
+            <span class="hit-pad-hint">SPACE</span>
+          </button>
+        </div>
+      </section>
+
+      <section id="result-screen" class="screen result-screen is-hidden" aria-labelledby="result-title">
+        <p class="eyebrow">CHALLENGE COMPLETE</p>
+        <h2 id="result-title">FINISH!</h2>
+
+        <div class="final-score">
+          <span>FINAL SCORE</span>
+          <strong id="final-score">00000</strong>
+        </div>
+
+        <div class="result-grid">
+          <div class="result-item result-perfect">
+            <span>PERFECT</span>
+            <strong id="perfect-count">0</strong>
+          </div>
+          <div class="result-item result-good">
+            <span>GOOD</span>
+            <strong id="good-count">0</strong>
+          </div>
+          <div class="result-item result-miss">
+            <span>MISS</span>
+            <strong id="miss-count">0</strong>
+          </div>
+          <div class="result-item result-combo">
+            <span>MAX COMBO</span>
+            <strong id="max-combo">0</strong>
+          </div>
+        </div>
+
+        <button id="replay-button" class="primary-button" type="button">
+          <span>PLAY AGAIN</span>
+          <span aria-hidden="true">↻</span>
+        </button>
+      </section>
+    </main>
+    <div class="page-noise" aria-hidden="true"></div>
+  </body>
+</html>
