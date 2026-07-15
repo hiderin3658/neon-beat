@@ -6,33 +6,37 @@
     <meta name="theme-color" content="#070816" />
     <meta
       name="description"
-      content="30秒で遊べる1ボタンのネオン・リズムゲーム。音に合わせてSpaceキーまたは画面をタップしよう。"
+      content="2つの遊び方を選べるネオン・リズムゲーム。反射神経のNEON BEATと、記憶力のNEON ECHOに挑戦しよう。"
     />
-    <title>NEON BEAT — 30 Second Rhythm Challenge</title>
+    <title>NEON RHYTHM — Beat & Echo Challenge</title>
     <link rel="stylesheet" href="style.css" />
     <script src="game.js" defer></script>
   </head>
   <body>
     <main class="app-shell">
       <section id="start-screen" class="screen start-screen" aria-labelledby="game-title">
-        <div class="brand-mark" aria-hidden="true">NB//30</div>
-        <p class="eyebrow">ONE BUTTON RHYTHM CHALLENGE</p>
+        <div class="brand-mark" aria-hidden="true">NR//02</div>
+        <p class="eyebrow">NEON RHYTHM ARCHIVE</p>
         <h1 id="game-title"><span>NEON</span> BEAT</h1>
         <p class="intro">
-          光がラインに重なる瞬間を狙え。<br />
-          30秒、音と反射神経の勝負。
+          反射で叩くか、記憶して返すか。<br />
+          2つのリズムチャレンジを選べ。
         </p>
 
-        <div class="how-to" aria-label="操作方法">
-          <div class="control-key" aria-hidden="true">SPACE</div>
-          <span>または</span>
-          <div class="control-tap" aria-hidden="true">TAP</div>
+        <div class="level-select" aria-label="ゲームモードを選択">
+          <button id="start-button" class="level-card level-card-beat" type="button">
+            <span class="level-number">LEVEL 01</span>
+            <strong>NEON BEAT</strong>
+            <span class="level-description">流れるノーツを叩け</span>
+            <span class="level-control">SPACE / TAP <b aria-hidden="true">→</b></span>
+          </button>
+          <button id="echo-start-button" class="level-card level-card-echo" type="button">
+            <span class="level-number">LEVEL 02</span>
+            <strong>NEON ECHO</strong>
+            <span class="level-description">光と音を記憶して返せ</span>
+            <span class="level-control">F + J / TAP <b aria-hidden="true">→</b></span>
+          </button>
         </div>
-
-        <button id="start-button" class="primary-button" type="button">
-          <span>START GAME</span>
-          <span aria-hidden="true">→</span>
-        </button>
         <p class="sound-note">音が出ます。音量を確認してからスタートしてください。</p>
       </section>
 
@@ -79,8 +83,50 @@
         </div>
       </section>
 
+      <section id="echo-screen" class="screen echo-screen is-hidden" aria-labelledby="echo-title">
+        <header class="game-header echo-header">
+          <div class="hud-item">
+            <span class="hud-label">SCORE</span>
+            <strong id="echo-score">00000</strong>
+          </div>
+          <div class="hud-center" aria-hidden="true">LEVEL//02</div>
+          <div class="hud-item hud-item-right">
+            <span class="hud-label">ROUND</span>
+            <strong><span id="echo-round">1</span><small>/4</small></strong>
+          </div>
+        </header>
+
+        <div class="echo-stage">
+          <div class="echo-orbit echo-orbit-one" aria-hidden="true"></div>
+          <div class="echo-orbit echo-orbit-two" aria-hidden="true"></div>
+
+          <p id="echo-phase" class="echo-phase" role="status" aria-live="assertive">GET READY</p>
+          <h2 id="echo-title">NEON <span>ECHO</span></h2>
+          <p id="echo-instruction" class="echo-instruction">光と音の順番を覚えろ</p>
+
+          <div id="echo-steps" class="echo-steps" aria-hidden="true"></div>
+          <div id="echo-judgement" class="judgement echo-judgement" role="status" aria-live="polite"></div>
+
+          <div class="echo-combo" aria-live="polite">
+            <strong id="echo-combo">0</strong>
+            <span>COMBO</span>
+          </div>
+
+          <div class="echo-pads">
+            <button id="echo-cyan-pad" class="echo-pad echo-pad-cyan" type="button" aria-label="シアンのパッド">
+              <span class="echo-pad-key">F</span>
+              <strong>CYAN</strong>
+            </button>
+            <button id="echo-pink-pad" class="echo-pad echo-pad-pink" type="button" aria-label="ピンクのパッド">
+              <span class="echo-pad-key">J</span>
+              <strong>PINK</strong>
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section id="result-screen" class="screen result-screen is-hidden" aria-labelledby="result-title">
-        <p class="eyebrow">CHALLENGE COMPLETE</p>
+        <p id="result-eyebrow" class="eyebrow">CHALLENGE COMPLETE</p>
         <h2 id="result-title">FINISH!</h2>
 
         <div class="final-score">
@@ -107,10 +153,16 @@
           </div>
         </div>
 
-        <button id="replay-button" class="primary-button" type="button">
-          <span>PLAY AGAIN</span>
-          <span aria-hidden="true">↻</span>
-        </button>
+        <div class="result-actions">
+          <button id="replay-button" class="primary-button" type="button">
+            <span>PLAY AGAIN</span>
+            <span aria-hidden="true">↻</span>
+          </button>
+          <button id="menu-button" class="menu-button" type="button">
+            <span>BACK TO TOP</span>
+            <span aria-hidden="true">⌂</span>
+          </button>
+        </div>
       </section>
     </main>
     <div class="page-noise" aria-hidden="true"></div>

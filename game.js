@@ -16,12 +16,26 @@ const CONFIG = Object.freeze({
   }),
 });
 
+const ECHO_CONFIG = Object.freeze({
+  rounds: 4,
+  lengths: Object.freeze([4, 6, 8, 10]),
+  bpms: Object.freeze([86, 96, 106, 116]),
+  rhythmPattern: Object.freeze([1, 0.5, 1.5, 1, 0.5, 0.5]),
+  perfectWindow: 0.1,
+  goodWindow: 0.22,
+  playbackLead: 0.8,
+  frequencies: Object.freeze({ cyan: 440, pink: 660 }),
+});
+
 const elements = {
   startScreen: document.querySelector("#start-screen"),
   gameScreen: document.querySelector("#game-screen"),
+  echoScreen: document.querySelector("#echo-screen"),
   resultScreen: document.querySelector("#result-screen"),
   startButton: document.querySelector("#start-button"),
+  echoStartButton: document.querySelector("#echo-start-button"),
   replayButton: document.querySelector("#replay-button"),
+  menuButton: document.querySelector("#menu-button"),
   hitPad: document.querySelector("#hit-pad"),
   score: document.querySelector("#score"),
   combo: document.querySelector("#combo"),
@@ -32,6 +46,17 @@ const elements = {
   targetLine: document.querySelector(".target-line"),
   countdown: document.querySelector("#countdown"),
   judgement: document.querySelector("#judgement"),
+  echoScore: document.querySelector("#echo-score"),
+  echoRound: document.querySelector("#echo-round"),
+  echoPhase: document.querySelector("#echo-phase"),
+  echoInstruction: document.querySelector("#echo-instruction"),
+  echoSteps: document.querySelector("#echo-steps"),
+  echoJudgement: document.querySelector("#echo-judgement"),
+  echoCombo: document.querySelector("#echo-combo"),
+  echoCyanPad: document.querySelector("#echo-cyan-pad"),
+  echoPinkPad: document.querySelector("#echo-pink-pad"),
+  resultEyebrow: document.querySelector("#result-eyebrow"),
+  resultTitle: document.querySelector("#result-title"),
   finalScore: document.querySelector("#final-score"),
   perfectCount: document.querySelector("#perfect-count"),
   goodCount: document.querySelector("#good-count"),
@@ -43,6 +68,10 @@ let audioContext = null;
 let animationFrame = null;
 let runId = 0;
 let state = createInitialState();
+let echoState = createInitialEchoState();
+let currentMode = "beat";
+let echoTimers = [];
+let echoResponseTimer = null;
 
 function createInitialState() {
   return {
@@ -58,12 +87,26 @@ function createInitialState() {
   };
 }
 
+function createInitialEchoState() {
+  return {
+    phase: "idle",
+    round: 1,
+    sequence: [],
+    inputIndex: 0,
+    inputAnchor: null,
+    score: 0,
+    combo: 0,
+    maxCombo: 0,
+    counts: { perfect: 0, good: 0, miss: 0 },
+  };
+}
+
 function formatScore(value) {
   return String(value).padStart(5, "0");
 }
 
 function showScreen(screen) {
-  [elements.startScreen, elements.gameScreen, elements.resultScreen].forEach((item) => {
+  [elements.startScreen, elements.gameScreen, elements.echoScreen, elements.resultScreen].forEach((item) => {
     item.classList.toggle("is-hidden", item !== screen);
   });
 }
@@ -155,6 +198,8 @@ async function startGame() {
     return;
   }
 
+  currentMode = "beat";
+  clearEchoTimers();
   runId += 1;
   const currentRun = runId;
   cancelAnimationFrame(animationFrame);
@@ -321,33 +366,306 @@ function finishGame() {
 
   elements.time.textContent = "0.0";
   elements.progressBar.style.width = "100%";
-  elements.finalScore.textContent = formatScore(state.score);
-  elements.perfectCount.textContent = String(state.counts.perfect);
-  elements.goodCount.textContent = String(state.counts.good);
-  elements.missCount.textContent = String(state.counts.miss);
-  elements.maxCombo.textContent = String(state.maxCombo);
 
   window.setTimeout(() => {
-    showScreen(elements.resultScreen);
-    elements.replayButton.focus({ preventScroll: true });
+    presentResults("beat", state.score, state.counts, state.maxCombo);
   }, 350);
 }
 
+function presentResults(mode, score, counts, maxCombo) {
+  currentMode = mode;
+  elements.resultEyebrow.textContent = mode === "echo" ? "LEVEL 02 COMPLETE" : "LEVEL 01 COMPLETE";
+  elements.resultTitle.textContent = mode === "echo" ? "ECHO CLEAR!" : "FINISH!";
+  elements.finalScore.textContent = formatScore(score);
+  elements.perfectCount.textContent = String(counts.perfect);
+  elements.goodCount.textContent = String(counts.good);
+  elements.missCount.textContent = String(counts.miss);
+  elements.maxCombo.textContent = String(maxCombo);
+  showScreen(elements.resultScreen);
+  elements.replayButton.focus({ preventScroll: true });
+}
+
+function clearEchoTimers() {
+  echoTimers.forEach((timer) => window.clearTimeout(timer));
+  echoTimers = [];
+  if (echoResponseTimer !== null) {
+    window.clearTimeout(echoResponseTimer);
+    echoResponseTimer = null;
+  }
+}
+
+function scheduleEchoTimer(callback, delay) {
+  const timer = window.setTimeout(callback, Math.max(0, delay));
+  echoTimers.push(timer);
+  return timer;
+}
+
+async function startEchoGame() {
+  try {
+    await ensureAudio();
+  } catch (error) {
+    console.error(error);
+    elements.echoStartButton.textContent = "AUDIO NOT SUPPORTED";
+    elements.echoStartButton.disabled = true;
+    return;
+  }
+
+  currentMode = "echo";
+  runId += 1;
+  cancelAnimationFrame(animationFrame);
+  clearEchoTimers();
+  state = createInitialState();
+  echoState = createInitialEchoState();
+  elements.echoPhase.classList.remove("is-repeat");
+  elements.echoPhase.textContent = "GET READY";
+  elements.echoInstruction.textContent = "光と音の順番を覚えろ";
+  elements.echoJudgement.textContent = "";
+  elements.echoSteps.replaceChildren();
+  updateEchoHud();
+  showScreen(elements.echoScreen);
+  scheduleEchoTimer(startEchoRound, 600);
+}
+
+function buildEchoSequence(round) {
+  const length = ECHO_CONFIG.lengths[round - 1];
+  const beatLength = 60 / ECHO_CONFIG.bpms[round - 1];
+  const sequence = [];
+  let offset = 0;
+
+  for (let index = 0; index < length; index += 1) {
+    let pad = Math.random() < 0.5 ? "cyan" : "pink";
+    if (index >= 2 && sequence[index - 1].pad === pad && sequence[index - 2].pad === pad) {
+      pad = pad === "cyan" ? "pink" : "cyan";
+    }
+
+    sequence.push({ pad, offset });
+    offset += ECHO_CONFIG.rhythmPattern[index % ECHO_CONFIG.rhythmPattern.length] * beatLength;
+  }
+
+  return sequence;
+}
+
+function renderEchoSteps() {
+  elements.echoSteps.replaceChildren();
+  echoState.sequence.forEach(() => {
+    const step = document.createElement("span");
+    step.className = "echo-step";
+    elements.echoSteps.appendChild(step);
+  });
+}
+
+function startEchoRound() {
+  clearEchoTimers();
+  echoState.phase = "listen";
+  echoState.sequence = buildEchoSequence(echoState.round);
+  echoState.inputIndex = 0;
+  echoState.inputAnchor = null;
+  renderEchoSteps();
+  updateEchoHud();
+
+  elements.echoPhase.classList.remove("is-repeat");
+  elements.echoPhase.textContent = "LISTEN";
+  elements.echoInstruction.textContent = "まだ触らず、リズムを記憶";
+
+  const playbackStart = audioContext.currentTime + ECHO_CONFIG.playbackLead;
+  const stepElements = Array.from(elements.echoSteps.children);
+
+  echoState.sequence.forEach((event, index) => {
+    const eventTime = playbackStart + event.offset;
+    const frequency = ECHO_CONFIG.frequencies[event.pad];
+    playTone(eventTime, frequency, 0.14, 0.12, event.pad === "cyan" ? "sine" : "triangle");
+
+    scheduleEchoTimer(() => {
+      flashEchoPad(event.pad);
+      stepElements[index].classList.add("is-active");
+      scheduleEchoTimer(() => {
+        stepElements[index].classList.remove("is-active");
+        stepElements[index].classList.add("is-heard");
+      }, 190);
+    }, (eventTime - audioContext.currentTime) * 1000);
+  });
+
+  const finalEvent = echoState.sequence[echoState.sequence.length - 1];
+  const playbackDuration = (playbackStart - audioContext.currentTime + finalEvent.offset) * 1000;
+  scheduleEchoTimer(beginEchoRepeat, playbackDuration + 750);
+}
+
+function beginEchoRepeat() {
+  echoState.phase = "repeat";
+  echoState.inputIndex = 0;
+  echoState.inputAnchor = null;
+  elements.echoPhase.classList.add("is-repeat");
+  elements.echoPhase.textContent = "REPEAT";
+  elements.echoInstruction.textContent = "同じ色・同じ間隔で返せ — F / J またはタップ";
+  Array.from(elements.echoSteps.children).forEach((step) => {
+    step.className = "echo-step";
+  });
+
+  const finalOffset = echoState.sequence[echoState.sequence.length - 1].offset;
+  echoResponseTimer = scheduleEchoTimer(timeoutEchoRound, (finalOffset + 4) * 1000);
+}
+
+function handleEchoHit(pad) {
+  if (echoState.phase !== "repeat") return;
+
+  const now = audioContext.currentTime;
+  const expected = echoState.sequence[echoState.inputIndex];
+  flashEchoPad(pad);
+  playTone(now, ECHO_CONFIG.frequencies[pad], 0.12, CONFIG.volume.hit, pad === "cyan" ? "sine" : "triangle");
+
+  if (echoState.inputAnchor === null) {
+    echoState.inputAnchor = now;
+  }
+
+  const expectedElapsed = expected.offset - echoState.sequence[0].offset;
+  const actualElapsed = now - echoState.inputAnchor;
+  const timingDifference = Math.abs(actualElapsed - expectedElapsed);
+  let judgement = "miss";
+
+  if (pad === expected.pad && timingDifference <= ECHO_CONFIG.perfectWindow) {
+    judgement = "perfect";
+  } else if (pad === expected.pad && timingDifference <= ECHO_CONFIG.goodWindow) {
+    judgement = "good";
+  }
+
+  applyEchoJudgement(judgement, echoState.inputIndex);
+  echoState.inputIndex += 1;
+
+  if (echoState.inputIndex >= echoState.sequence.length) {
+    completeEchoRound();
+  }
+}
+
+function applyEchoJudgement(judgement, stepIndex) {
+  if (judgement === "perfect") {
+    echoState.score += 1000;
+    echoState.combo += 1;
+  } else if (judgement === "good") {
+    echoState.score += 500;
+    echoState.combo += 1;
+  } else {
+    echoState.combo = 0;
+  }
+
+  echoState.maxCombo = Math.max(echoState.maxCombo, echoState.combo);
+  echoState.counts[judgement] += 1;
+  const step = elements.echoSteps.children[stepIndex];
+  if (step) step.className = `echo-step is-${judgement}`;
+  updateEchoHud();
+  showEchoJudgement(judgement);
+}
+
+function updateEchoHud() {
+  elements.echoScore.textContent = formatScore(echoState.score);
+  elements.echoRound.textContent = String(echoState.round);
+  elements.echoCombo.textContent = String(echoState.combo);
+}
+
+function showEchoJudgement(judgement, label = judgement.toUpperCase()) {
+  elements.echoJudgement.textContent = label;
+  elements.echoJudgement.className = `judgement echo-judgement ${judgement}`;
+  void elements.echoJudgement.offsetWidth;
+  elements.echoJudgement.classList.add("show");
+}
+
+function flashEchoPad(pad) {
+  const element = pad === "cyan" ? elements.echoCyanPad : elements.echoPinkPad;
+  element.classList.add("is-active");
+  window.setTimeout(() => element.classList.remove("is-active"), 170);
+}
+
+function completeEchoRound() {
+  if (echoState.phase !== "repeat") return;
+  echoState.phase = "transition";
+  if (echoResponseTimer !== null) {
+    window.clearTimeout(echoResponseTimer);
+    echoResponseTimer = null;
+  }
+  elements.echoPhase.classList.remove("is-repeat");
+  elements.echoPhase.textContent = "SYNCED";
+  elements.echoInstruction.textContent = "次のシーケンスを準備中";
+
+  if (echoState.round >= ECHO_CONFIG.rounds) {
+    scheduleEchoTimer(finishEchoGame, 950);
+    return;
+  }
+
+  echoState.round += 1;
+  scheduleEchoTimer(startEchoRound, 1100);
+}
+
+function timeoutEchoRound() {
+  if (echoState.phase !== "repeat") return;
+
+  while (echoState.inputIndex < echoState.sequence.length) {
+    applyEchoJudgement("miss", echoState.inputIndex);
+    echoState.inputIndex += 1;
+  }
+  showEchoJudgement("miss", "TIME OUT");
+  completeEchoRound();
+}
+
+function finishEchoGame() {
+  clearEchoTimers();
+  echoState.phase = "finished";
+  presentResults("echo", echoState.score, echoState.counts, echoState.maxCombo);
+}
+
+function returnToMenu() {
+  runId += 1;
+  cancelAnimationFrame(animationFrame);
+  clearEchoTimers();
+  state = createInitialState();
+  echoState = createInitialEchoState();
+  showScreen(elements.startScreen);
+  elements.startButton.focus({ preventScroll: true });
+}
+
 elements.startButton.addEventListener("click", startGame);
-elements.replayButton.addEventListener("click", startGame);
+elements.echoStartButton.addEventListener("click", startEchoGame);
+elements.replayButton.addEventListener("click", () => {
+  if (currentMode === "echo") {
+    startEchoGame();
+  } else {
+    startGame();
+  }
+});
+elements.menuButton.addEventListener("click", returnToMenu);
 elements.hitPad.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   handleHit();
 });
+elements.echoCyanPad.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  handleEchoHit("cyan");
+});
+elements.echoPinkPad.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  handleEchoHit("pink");
+});
 
 document.addEventListener("keydown", (event) => {
-  if (event.code !== "Space" || event.repeat || state.phase !== "playing") return;
-  event.preventDefault();
-  handleHit();
+  if (event.repeat) return;
+
+  if (event.code === "Space" && currentMode === "beat" && state.phase === "playing") {
+    event.preventDefault();
+    handleHit();
+    return;
+  }
+
+  if (currentMode === "echo" && echoState.phase === "repeat" && ["KeyF", "KeyJ"].includes(event.code)) {
+    event.preventDefault();
+    handleEchoHit(event.code === "KeyF" ? "cyan" : "pink");
+  }
 });
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && state.phase !== "idle" && state.phase !== "finished") {
+  if (
+    currentMode === "beat" &&
+    document.visibilityState === "visible" &&
+    state.phase !== "idle" &&
+    state.phase !== "finished"
+  ) {
     cancelAnimationFrame(animationFrame);
     animationFrame = requestAnimationFrame(() => updateGame(runId));
   }
